@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import messagebox, ttk, filedialog
 import subprocess
 import os
 from datetime import datetime
@@ -71,6 +71,7 @@ class UWFManager:
         self.create_sidebar()
         self.create_main_content()
         self.create_feedback_panel()
+        self.create_exclusions_panel()
 
         for msg, msg_type in self.startup_logs:
             self.add_feedback(msg, msg_type)
@@ -172,7 +173,8 @@ class UWFManager:
         ALLOWED_COMMANDS = {
             "enable_uwf", "disable_uwf", "get_uwf_status",
             "protect_volume", "unprotect_volume", "set_overlay_config",
-            "initialize_exclusions"
+            "initialize_exclusions", "get_exclusions", "add_file_exclusion",
+            "remove_file_exclusion", "add_registry_exclusion", "remove_registry_exclusion"
         }
 
         if script_name not in ALLOWED_COMMANDS:
@@ -340,6 +342,9 @@ class UWFManager:
                 config_lines = result.split('\n')
                 status_updated = False
                 volumes_updated = False
+                file_exclusions = []
+                registry_exclusions = []
+                current_section = ""
 
                 for line in config_lines:
                     line = line.strip()
@@ -369,14 +374,25 @@ class UWFManager:
                     elif "HORM Status:" in line:
                         self.horm_enabled = "Yes" if "Enabled" in line else "No"
                         status_updated = True
+                    elif "Protected Volumes:" in line:
+                        current_section = "volumes"
+                    elif "File Exclusions:" in line:
+                        current_section = "file"
+                    elif "Registry Exclusions:" in line:
+                        current_section = "registry"
+                    elif line and current_section == "volumes" and ":" in line:
+                        if line.strip() not in self.protected_volumes:
+                            self.protected_volumes.append(line.strip())
+                            volumes_updated = True
+                    elif line and current_section == "file":
+                        file_exclusions.append(line)
+                    elif line and current_section == "registry":
+                        registry_exclusions.append(line)
 
-                if "Protected Volumes:" in result:
-                    volumes_section = result.split("Protected Volumes:")[1]
-                    new_volumes = [line.strip() for line in volumes_section.split("\n")
-                                   if ":" in line and line.strip()]
-                    if set(self.protected_volumes) != set(new_volumes):
-                        self.protected_volumes = new_volumes
-                        volumes_updated = True
+                self.config_manager.update_config(
+                    file_exclusions=file_exclusions,
+                    registry_exclusions=registry_exclusions
+                )
 
                 if status_updated or volumes_updated:
                     self.update_config_from_current_state()
@@ -484,6 +500,41 @@ class UWFManager:
         else:
             ttk.Label(volumes_frame, text="No volumes are currently protected.").pack(pady=10)
 
+        exclusions_frame = ttk.LabelFrame(self.status_frame, text="Exclusions")
+        exclusions_frame.pack(fill=tk.X, pady=10)
+
+        config = self.config_manager.get_config()
+        if config.file_exclusions or config.registry_exclusions:
+            canvas = tk.Canvas(exclusions_frame, height=100)
+            scrollbar = ttk.Scrollbar(exclusions_frame, orient="vertical", command=canvas.yview)
+            scrollable_frame = ttk.Frame(canvas)
+
+            scrollable_frame.bind(
+                "<Configure>",
+                lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+            )
+
+            canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+            canvas.configure(yscrollcommand=scrollbar.set)
+
+            if config.file_exclusions:
+                ttk.Label(scrollable_frame, text="File/Folder Exclusions:",
+                          font=('Segoe UI', 9, 'bold')).pack(pady=2)
+                for exclusion in config.file_exclusions:
+                    ttk.Label(scrollable_frame, text=exclusion).pack(pady=1)
+
+            if config.registry_exclusions:
+                ttk.Label(scrollable_frame, text="Registry Exclusions:",
+                          font=('Segoe UI', 9, 'bold')).pack(pady=2)
+                for exclusion in config.registry_exclusions:
+                    ttk.Label(scrollable_frame, text=exclusion).pack(pady=1)
+
+            canvas.pack(side="left", fill="both", expand=True, padx=5, pady=5)
+            scrollbar.pack(side="right", fill="y")
+        else:
+            ttk.Label(exclusions_frame, text="No exclusions configured.").pack(pady=10)
+
+
     def show_settings(self) -> None:
         """Displays settings view for UWF configuration."""
         self.hide_all_frames()
@@ -540,6 +591,8 @@ class UWFManager:
         ttk.Button(overlay_frame, text="Apply Overlay Settings",
                    command=self.apply_overlay_settings).pack(pady=10)
 
+        self.create_exclusions_panel()
+
     def create_status_row(self, parent: ttk.Frame, label_text: str, value_text: str, row: int) -> None:
         """Creates a row in the status display with label and value."""
         ttk.Label(parent, text=label_text).grid(row=row, column=0, padx=10, pady=5, sticky=tk.W)
@@ -566,6 +619,143 @@ class UWFManager:
             self._create_tooltip(entry, tooltip_text)
 
         return entry
+
+    def create_exclusions_panel(self) -> None:
+        """Creates panels for managing file and registry exclusions."""
+        # File Exclusions Frame
+        file_frame = ttk.LabelFrame(self.settings_frame, text="File/Folder Exclusions")
+        file_frame.pack(fill=tk.X, pady=10)
+
+        # File Entry
+        file_entry_frame = ttk.Frame(file_frame)
+        file_entry_frame.pack(fill=tk.X, padx=10, pady=5)
+        ttk.Label(file_entry_frame, text="Path:").pack(side=tk.LEFT)
+        self.file_exclusion_entry = ttk.Entry(file_entry_frame, width=50)
+        self.file_exclusion_entry.pack(side=tk.LEFT, padx=(10, 0))
+
+        ttk.Button(file_entry_frame, text="Browse",
+                   command=self._browse_file).pack(side=tk.LEFT, padx=5)
+
+        # File Exclusion Buttons
+        button_frame = ttk.Frame(file_frame)
+        button_frame.pack(fill=tk.X, padx=10, pady=5)
+        ttk.Button(button_frame, text="Add Exclusion",
+                   command=self.add_file_exclusion).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="Remove Exclusion",
+                   command=self.remove_file_exclusion).pack(side=tk.LEFT, padx=5)
+
+        # Registry Exclusions Frame
+        reg_frame = ttk.LabelFrame(self.settings_frame, text="Registry Exclusions")
+        reg_frame.pack(fill=tk.X, pady=10)
+
+        # Registry Entry
+        reg_entry_frame = ttk.Frame(reg_frame)
+        reg_entry_frame.pack(fill=tk.X, padx=10, pady=5)
+        ttk.Label(reg_entry_frame, text="Key:").pack(side=tk.LEFT)
+        self.registry_exclusion_entry = ttk.Entry(reg_entry_frame, width=50)
+        self.registry_exclusion_entry.pack(side=tk.LEFT, padx=(10, 0))
+
+        # Registry Exclusion Buttons
+        reg_button_frame = ttk.Frame(reg_frame)
+        reg_button_frame.pack(fill=tk.X, padx=10, pady=5)
+        ttk.Button(reg_button_frame, text="Add Exclusion",
+                   command=self.add_registry_exclusion).pack(side=tk.LEFT, padx=5)
+        ttk.Button(reg_button_frame, text="Remove Exclusion",
+                   command=self.remove_registry_exclusion).pack(side=tk.LEFT, padx=5)
+
+        # Display current exclusions
+        self.update_exclusions_display()
+
+    def _browse_file(self) -> None:
+        """Opens file browser for selecting files/folders to exclude."""
+        path = filedialog.askdirectory()
+        if path:
+            self.file_exclusion_entry.delete(0, tk.END)
+            self.file_exclusion_entry.insert(0, path)
+
+    def add_file_exclusion(self) -> None:
+        """Adds file/folder exclusion."""
+        path = self.file_exclusion_entry.get().strip()
+        if not path:
+            messagebox.showerror("Error", "Please enter a valid path")
+            return
+
+        if self.run_batch_script("add_file_exclusion", path):
+            self.config_manager.add_file_exclusion(path)
+            self.update_exclusions_display()
+            self.file_exclusion_entry.delete(0, tk.END)
+
+    def remove_file_exclusion(self) -> None:
+        """Removes file/folder exclusion."""
+        path = self.file_exclusion_entry.get().strip()
+        if not path:
+            messagebox.showerror("Error", "Please enter a valid path")
+            return
+
+        if self.run_batch_script("remove_file_exclusion", path):
+            self.config_manager.remove_file_exclusion(path)
+            self.update_exclusions_display()
+            self.file_exclusion_entry.delete(0, tk.END)
+
+    def add_registry_exclusion(self) -> None:
+        """Adds registry key exclusion."""
+        key = self.registry_exclusion_entry.get().strip()
+        if not key:
+            messagebox.showerror("Error", "Please enter a valid registry key")
+            return
+
+        if self.run_batch_script("add_registry_exclusion", key):
+            self.config_manager.add_registry_exclusion(key)
+            self.update_exclusions_display()
+            self.registry_exclusion_entry.delete(0, tk.END)
+
+    def remove_registry_exclusion(self) -> None:
+        """Removes registry key exclusion."""
+        key = self.registry_exclusion_entry.get().strip()
+        if not key:
+            messagebox.showerror("Error", "Please enter a valid registry key")
+            return
+
+        if self.run_batch_script("remove_registry_exclusion", key):
+            self.config_manager.remove_registry_exclusion(key)
+            self.update_exclusions_display()
+            self.registry_exclusion_entry.delete(0, tk.END)
+
+    def update_exclusions_display(self) -> None:
+        """Updates the display of current exclusions."""
+        config = self.config_manager.get_config()
+
+        # Update file exclusions display
+        result = self.run_batch_script("get_exclusions", return_output=True)
+        if isinstance(result, str):
+            # Parse and update the config with current exclusions
+            file_section = False
+            registry_section = False
+            file_exclusions = []
+            registry_exclusions = []
+
+            for line in result.split('\n'):
+                line = line.strip()
+                if "File/Folder Exclusions:" in line:
+                    file_section = True
+                    registry_section = False
+                    continue
+                elif "Registry Exclusions:" in line:
+                    file_section = False
+                    registry_section = True
+                    continue
+                elif line:
+                    if file_section:
+                        file_exclusions.append(line)
+                    elif registry_section:
+                        registry_exclusions.append(line)
+
+            config.file_exclusions = file_exclusions
+            config.registry_exclusions = registry_exclusions
+            self.config_manager.update_config(
+                file_exclusions=file_exclusions,
+                registry_exclusions=registry_exclusions
+            )
 
     def _create_tooltip(self, widget: tk.Widget, text: str) -> None:
         """Creates a tooltip for a widget."""
