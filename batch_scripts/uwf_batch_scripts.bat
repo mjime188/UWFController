@@ -83,6 +83,14 @@ if "%command%"=="add_file_exclusion" (
     )
     goto :eof
 )
+if "%command%"=="get_exclusions" (
+    echo File/Folder Exclusions:
+    uwfmgr file get-exclusions
+    echo.
+    echo Registry Exclusions:
+    uwfmgr registry get-exclusions
+    goto :eof
+)
 
 if "%command%"=="add_folder_exclusion" (
     uwfmgr file add-exclusion %1
@@ -94,12 +102,32 @@ if "%command%"=="add_folder_exclusion" (
     goto :eof
 )
 
+if "%command%"=="remove_file_exclusion" (
+    uwfmgr file remove-exclusion %1
+    if %errorlevel% equ 0 (
+        echo File/folder exclusion removed successfully: %1
+    ) else (
+        echo Failed to remove file/folder exclusion: %1
+    )
+    goto :eof
+)
+
 if "%command%"=="add_registry_exclusion" (
     uwfmgr registry add-exclusion %1
     if %errorlevel% equ 0 (
         echo Registry exclusion added successfully.
     ) else (
         echo Failed to add registry exclusion.
+    )
+    goto :eof
+)
+
+if "%command%"=="remove_registry_exclusion" (
+    uwfmgr registry remove-exclusion %1
+    if %errorlevel% equ 0 (
+        echo Registry exclusion removed successfully: %1
+    ) else (
+        echo Failed to remove registry exclusion: %1
     )
     goto :eof
 )
