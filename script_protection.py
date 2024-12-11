@@ -1,3 +1,6 @@
+"""Created by Mark Jimenez, Bryan Arango Cruz, Francisco Cuello"""
+"""CIS5370 Group 8 Final Project UWF Controller"""
+"""UWF Controller"""
 import hashlib
 import os
 from datetime import datetime

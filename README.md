@@ -1,136 +1,111 @@
-# UWF Remote Management Tool - Setup Guide
+# Created by Mark Jimenez, Bryan Arango Cruz, Francisco Cuello
+# CIS5370 Group 8 Final Project UWF Controller
+# UWF Controller
 
-## Prerequisites
-- Windows Edu or Enterprise OS
-- (For testing) Two Windows VMs (one controller, one target)
-- Python 3.11.7 installed on controller VM
-- Administrator access on both VMs
+A graphical user interface for managing Windows Unified Write Filter (UWF) settings. This application simplifies the process of configuring and monitoring UWF on Windows systems.
 
-## Installation Steps
+## Overview
 
-### 1. Python Setup (Controller VM)
-1. Download Python 3.11.7 from [python.org](https://www.python.org/downloads/)
-2. During installation:
-   - Check "Add Python to PATH"
-   - Check "Install for all users"
-   - Choose "Customize installation"
+The UWF Controller provides a user-friendly interface for:
+- Enabling/disabling UWF protection
+- Managing protected volumes
+- Configuring overlay settings
+- Managing file and registry exclusions
+- Monitoring UWF status
 
-3. Install required Python packages:
-```cmd
-pip install wmi
-pip install pywin32
-```
+## Requirements
 
-### 2. PSExec Setup (Both VMs)
-1. Download PsTools from [Microsoft Sysinternals](https://learn.microsoft.com/en-us/sysinternals/downloads/psexec)
-2. Extract the zip file
-3. Copy psexec.exe to `C:\Windows\System32`
-4. Run in Command Prompt as Administrator:
-```cmd
-psexec -accepteula
-```
+- Windows 10/11 Education or Enterprise with UWF capability enabled
+- Python 3.8 or higher
+- Administrator privileges
+- Required Python packages:
+  - tkinter (usually comes with Python)
 
-### 3. Network Configuration (Both VMs)
+## Recommended
+- Virtual Machine
 
-#### Workgroup Setup
-1. Open System Properties (Right-click Computer -> Properties)
-2. Click "Change settings" next to Computer name
-3. Click "Change"
-4. Set workgroup name to "WORKGROUP" on both machines
-5. Restart both VMs
+## Installation
 
-#### Network Settings
-1. Assign unique static IP addresses to each VM
+1. Enable UWF in Windows:
+   ```
+   Turn Windows Features on or off > Device Lockdown > Unified Write Filter
+   ```
+   Note: System restart required after enabling UWF
 
+2. Clone or download the repository
 
-### 4. Windows Services & Firewall (Both VMs)
+3. Ensure all files are in the correct structure:
+   ```
+   UWF-Controller/
+   ├── main.py
+   ├── computer_config.py
+   ├── script_protection.py
+   ├── batch_scripts/
+   │   ├── uwf_batch_scripts.bat
+   │   └── script.hash
+   └── README.md
+   ```
 
-Run these commands in PowerShell as Administrator:
+## Usage
 
-```powershell
-# Enable WMI
-Enable-NetFirewallRule -DisplayGroup "Windows Management Instrumentation (WMI)"
+1. Run the application with administrator privileges:
+   ```
+   python main.py or main.exe
+   ```
 
-# Enable File and Printer Sharing
-Enable-NetFirewallRule -DisplayGroup "File and Printer Sharing"
+2. The interface consists of three main sections:
+   - Dashboard: Quick overview and basic controls
+   - Status: Detailed UWF configuration status
+   - Settings: Complete configuration options
 
-# Enable Network Discovery
-Enable-NetFirewallRule -DisplayGroup "Network Discovery"
+### Key Features
 
-# Enable Remote Administration
-New-NetFirewallRule -Name "PSExec" -DisplayName "PSExec" -Direction Inbound -Program "C:\Windows\System32\psexec.exe" -Action Allow
+- **Dashboard**
+  - Current UWF status display
+  - Quick enable/disable controls
+  - Protected volumes overview
 
-# Enable Required Services
-Set-Service WinRM -StartupType Automatic
-Start-Service WinRM
-Set-Service RemoteRegistry -StartupType Automatic
-Start-Service RemoteRegistry
-```
+- **Status Panel**
+  - Detailed configuration display
+  - Current protection status
+  - Overlay usage statistics
+  - List of protected volumes
+  - File and registry exclusions
 
-### 5. User Permissions (Target VM)
+- **Settings Panel**
+  - Volume protection management
+  - Overlay configuration
+    - Type (RAM/DISK)
+    - Maximum size
+    - Warning threshold
+    - Critical threshold
+  - Exclusion management
+    - File/folder exclusions
+    - Registry exclusions
 
-1. Open Local Security Policy (`secpol.msc`)
-2. Navigate to Security Settings > Local Policies > User Rights Assignment
-3. Configure these policies for your user account:
-   - Allow log on through Remote Desktop Services
-   - Log on as a batch job
-   - Log on as a service
-   - Access this computer from the network
+## Security Features
 
-### 6. UWF Setup (Target VM)
-1. Open PowerShell as Administrator
-2. Check if UWF is installed:
-```powershell
-uwfmgr.exe
-```
-3. If not installed, install UWF:
-	- Nagviage to Turn Windows Features On or Off > Device Lockdown > Unified Write Filter
+- Script integrity verification
+- Command sanitization
+- Administrator privileges requirement
+- Configuration backup
 
-## Testing the Setup
+## Known Limitations
 
-1. Test basic connectivity:
-```cmd
-ping [target-ip]
-```
-
-2. Test network share access:
-```cmd
-dir \\[target-ip]\C$
-```
+- UWF must be enabled through DISM before using the application
+- Requires administrator privileges
+- Some settings require system restart to take effect
 
 ## Troubleshooting
 
-### Connection Issues
-- Verify both VMs are in the same workgroup
-- Ensure firewall rules are properly configured
-- Check if services are running (WMI, Remote Registry)
-- Verify network connectivity between VMs
+1. **"Security Error" Message**
+   - Delete script.hash in batch_scripts folder
+   - Restart application to regenerate hash
 
-### Permission Issues
-- Verify user accounts have administrator privileges
-- Check security policy settings
-- Ensure proper network logon rights
+2. **"Access Denied" Error**
+   - Ensure running with administrator privileges
+   - Check UWF is properly enabled in Windows
 
-### PSExec Errors
-- Verify PSExec is in System32 directory
-- Run PSExec with -accepteula flag first
-- Check if the target machine allows remote execution
-
-## Common Error Messages
-
-1. "Network resource type is not correct":
-   - Check network share accessibility
-   - Verify workgroup configuration
-
-2. "Access is denied":
-   - Verify user permissions
-   - Check administrator privileges
-
-3. "WMI service is unavailable":
-   - Check WMI service status
-   - Verify firewall rules
-
-4. "Command timed out":
-   - Check network connectivity
-   - Verify PSExec installation
-   - Check service status on target machine
+3. **Settings Not Applying**
+   - Some changes require system restart
+   - Check system messages panel for specific errors

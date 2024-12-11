@@ -1,3 +1,6 @@
+"""Created by Mark Jimenez, Bryan Arango Cruz, Francisco Cuello"""
+"""CIS5370 Group 8 Final Project UWF Controller"""
+"""UWF Controller"""
 import tkinter as tk
 from tkinter import messagebox, ttk, filedialog
 import subprocess
